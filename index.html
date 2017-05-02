@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <title>Jogo de Nave</title>
+        <link rel="stylesheet" href="styles/main.css" media="screen" title="no title" charset="utf-8">
+        <script src="scripts/core.js" charset="utf-8"></script>
+
+        <!-- functions -->
+        <script src="scripts/functions.js" charset="utf-8"></script>
+
+        <!-- game engine -->
+        <script src="scripts/game-engine.js" charset="utf-8"></script>
+        <script src="scripts/game-engine/animation.js" charset="utf-8"></script>
+        <script src="scripts/game-engine/keyboard.js" charset="utf-8"></script>
+        <script src="scripts/game-engine/collider.js" charset="utf-8"></script>
+
+        <!-- graphic engine -->
+        <script src="scripts/graphic-engine.js" charset="utf-8"></script>
+        <script src="scripts/graphic-engine/background.js" charset="utf-8"></script>
+        <script src="scripts/graphic-engine/spritesheet.js" charset="utf-8"></script>
+
+        <!-- game business -->
+        <script src="scripts/game-business/panel.js" charset="utf-8"></script>
+        <script src="scripts/game-business/explosion.js" charset="utf-8"></script>
+        <script src="scripts/game-business/enemy.js" charset="utf-8"></script>
+        <script src="scripts/game-business/ammo.js" charset="utf-8"></script>
+        <script src="scripts/game-business/energy.js" charset="utf-8"></script>
+        <script src="scripts/game-business/spacecraft.js" charset="utf-8"></script>
+        <script src="scripts/game-business/shot.js" charset="utf-8"></script>
+    </head>
+    <body>
+        <canvas id="canvas_animation" width="500" height="500"></canvas>
+        <button onclick="core.startGame();" id="playButton">Jogar</button>
+        <script type="text/javascript">
+            //canvas and context
+            var canvas = document.getElementById('canvas_animation');
+            var context = canvas.getContext('2d');
+
+            var core = new Core();
+            core.init();
+
+            var points = 0;
+
+            //main vars
+            var images, animation, keyboard, collider, spacecraft, enemyCreator, panel;
+            var totalImages = 0, imagesLoaded = 0;
+            var actionSong;
+
+            //load images
+            //loadImages();
+
+            //load sounds
+            //loadSongs();
+
+            function loadSongs(){
+                actionSong = new Audio();
+                actionSong.src = 'snd/action-song.mp3'
+                actionSong.load();
+                actionSong.volume = 0.8;
+                actionSong.loop = true;
+            }
+
+            function startGame(){
+                enemyCreator.lastEnemy = new Date().getTime();
+                actionSong.play();
+                animation.on();
+                document.getElementById('playButton').style.display = 'none';
+                activeShot(true);
+                keyboard.trigger(ENTER, pauseGame);
+                spacecraft.bullets = 300;
+                panel.score = 0;
+            }
+
+            function loadImages(){
+                images = {
+                    space: 'img/background-space.png',
+                    stars: 'img/background-stars.png',
+                    clouds: 'img/background-clouds.png',
+                    spacecraft: 'img/spacecraft-spritesheet.png',
+                    enemy: 'img/enemy.png',
+                    explosion: 'img/explosion-spritesheet.png',
+                    rocket: 'img/rocket.png'
+                }
+
+                //load all
+                for(var i in images){
+                    var img = new Image();
+                    img.src = images[i];
+                    img.onload = loading;
+
+                    //replace string name to image object
+                    images[i] = img;
+
+                    totalImages++;
+                }
+            }
+
+            function loading(){
+                context.save();
+
+                //background
+                context.drawImage(images.space, 0, 0, canvas.width, canvas.height);
+
+                context.fillStyle = 'white';
+                context.strokeStyle = 'black';
+                context.font = '50px sans-serif';
+                context.fillText("Carregando...", 100, 200);
+                context.strokeText("Carregando...", 100, 200);
+
+                imagesLoaded++;
+
+                var totalSize = 300;
+                var size = imagesLoaded / totalImages * totalSize;
+                context.fillStyle = 'yellow';
+                context.fillRect(100, 250, size, 50);
+                context.restore();
+
+                if(imagesLoaded == totalImages){
+                    initObjects();
+                    showPlayButton();
+                }
+            }
+
+            function showPlayButton(){
+                document.getElementById('playButton').style.display = 'block';
+            }
+
+            function initObjects(){
+                //game engine
+                animation = new Animation(context);
+                keyboard = new Keyboard(document);
+                collider = new Collider();
+
+                //game background
+                space = new Background(context, images.space);
+                stars = new Background(context, images.stars);
+                clouds = new Background(context, images.clouds);
+
+                //game unit
+                spacecraft = new Spacecraft(context, keyboard, images.spacecraft, images.explosion);
+
+                panel = new Panel(context, spacecraft);
+
+                //init objects animations
+                animation.newSprite(space);
+                animation.newSprite(stars);
+                animation.newSprite(clouds);
+                animation.newSprite(panel);
+                animation.newSprite(spacecraft);
+
+                //init objects collider
+                collider.newSprite(spacecraft);
+                animation.newTask(collider);
+
+                initialConfigs();
+            }
+
+            function initialConfigs(){
+                //background
+                space.speed = 60;
+                stars.speed = 150;
+                clouds.speed = 500;
+
+                //spacecraft
+                spacecraft.reposition();
+                spacecraft.speed = 200;
+                spacecraft.energyFinished = function(other){
+                    var explosion = new Explosion(this.context, this.imgExplosion, other.x, other.y);
+                    this.animation.newSprite(explosion);
+                    this.animation.removeSprite(this);
+                    this.animation.removeTask(this);
+                    this.collider.removeSprite(this);
+
+                    explosion.endOfExplosion = function(){
+                        gameOver();
+                        animation.off();
+                    }
+                }
+
+                createEnemies();
+
+                collider.onCollide = function(o1, o2){
+                    if((o1 instanceof Shot && o2 instanceof Enemy) || (o1 instanceof Enemy && o2 instanceof Shot)){
+                        panel.score += 10;
+                    }
+                }
+            }
+
+            function pauseGame(){
+                if(animation.init){
+                    actionSong.pause();
+                    animation.off();
+                    activeShot(false);
+
+                    context.save();
+                    context.fillStyle = 'white';
+                    context.strokeStyle = 'black';
+                    context.font = '50px sans-serif';
+                    context.fillText("Pausado", 160, 200);
+                    context.strokeText("Pausado", 160, 200);
+                    context.restore();
+                }else{
+                    actionSong.play();
+                    //fix bug on pause enemy is generated
+                    enemyCreator.lastEnemy = new Date().getTime();
+                    animation.on();
+                    activeShot(true);
+                }
+            }
+
+            function createEnemies(){
+                enemyCreator = {
+                    lastEnemy: new Date().getTime(),
+                    process: function(){
+                        var now = new Date().getTime();
+                        var elapsed = now - this.lastEnemy;
+
+                        //1000 = 1s
+                        if(elapsed > 1000){
+                            newEnemy();
+                            this.lastEnemy = now;
+                        }
+                    }
+                };
+
+                animation.newTask(enemyCreator);
+            }
+
+            function newEnemy(){
+                var enemy = new Enemy(context, images.enemy, images.explosion);
+
+                //min: 250, max: 800
+                enemy.speed = Math.floor(250 + Math.random() * (800 - 250 + 1));
+
+                //min: 0, max: canvas width - enemy width
+                enemy.x = Math.floor(Math.random() * (canvas.width - images.enemy.width) + 1);
+
+                //discount height
+                enemy.y = -images.enemy.height;
+
+                animation.newSprite(enemy);
+                collider.newSprite(enemy);
+            }
+
+            function activeShot(active){
+                if(active){
+                    keyboard.trigger(SPACE, function(){
+                        spacecraft.shoot();
+                    });
+                }else{
+                    keyboard.trigger(SPACE, null);
+                }
+            }
+
+            function gameOver(){
+
+                activeShot(false);
+                keyboard.trigger(ENTER, null);
+
+                //stop music
+                actionSong.pause();
+                actionSong.currentTime = 0.0;
+
+                //background
+                context.drawImage(images.space, 0, 0, canvas.width, canvas.height);
+
+                //show game over text
+                context.save();
+                context.fillStyle = 'white';
+                context.strokeStyle = 'black';
+                context.font = '70px sans-serif';
+                context.fillText("GAME OVER", 40, 200);
+                context.strokeText("GAME OVER", 40, 200);
+                context.restore();
+
+                showPlayButton();
+
+                spacecraft.energy = 3;
+                spacecraft.reposition();
+                animation.newSprite(spacecraft);
+                collider.newSprite(spacecraft);
+
+                removeEnemies();
+            }
+
+            function removeEnemies(){
+                for(var i in animation.sprites){
+                    if(animation.sprites[i] instanceof Enemy)
+                        animation.removeSprite(animation.sprites[i]);
+                }
+            }
+        </script>
+    </body>
+</html>
