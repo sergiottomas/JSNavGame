@@ -5,7 +5,7 @@ As Principais mudanças em relação ao livro original são:
 
 - Contagem de Vida
 - Contagem de munição
-- Pegar vida na fase ()
+- Pegar vida na fase
 - Pegar munição
 
 AVISO: Cuidado ao ficar atirando a todo momento pois vidas e munição podem ser destruidos com o tiro da nave.
