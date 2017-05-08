@@ -8,6 +8,6 @@ As Principais mudanças em relação ao livro original são:
 - Pegar munição na fase
 - Dificuldade maior
 
-AVISO: Cuidado ao ficar atirando a todo momento pois vidas e munição podem ser destruidos com o tiro da nave.
+AVISO: Cuidado ao ficar atirando a todo momento pois vidas e munições serão destruidas com o tiro da nave.
 
 Ótimo study case.
